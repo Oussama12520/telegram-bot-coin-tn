@@ -190,19 +190,28 @@ bot.on('callback_query', async (query) => {
     const callbackId = query.id;
     const data = query.data || '';
     const message = query.message;
+    if (!message) return;
+
     const chatId = message.chat.id;
     const messageId = message.message_id;
     const oldText = message.text || '';
+
+    const safeAnswer = async (text, alert = false) => {
+        try {
+            await bot.answerCallbackQuery(callbackId, { text, show_alert: alert });
+        } catch (e) {
+            // Ignore if Telegram callback expired
+        }
+    };
 
     try {
         // 1. MARK AS COMPLETED
         if (data.startsWith('complete_')) {
             const orderNumber = data.replace('complete_', '');
-
             const res = await callBridge('complete', { order_number: orderNumber });
             if (!res.success) throw new Error(res.error || 'Failed to update order');
 
-            await bot.answerCallbackQuery(callbackId, { text: `✅ Commande ${orderNumber} terminée!` });
+            await safeAnswer(`✅ Commande ${orderNumber} marquée comme terminée!`);
 
             let newText = oldText.replace(/⏳ Statut:.*/, '⏳ Statut: ✅ TERMINÉE');
             if (newText === oldText) newText += '\n\n✅ Statut: TERMINÉE';
@@ -210,6 +219,7 @@ bot.on('callback_query', async (query) => {
             await bot.editMessageText(newText, {
                 chat_id: chatId,
                 message_id: messageId,
+                parse_mode: 'HTML',
                 reply_markup: {
                     inline_keyboard: [
                         [
@@ -225,11 +235,10 @@ bot.on('callback_query', async (query) => {
         // 2. MARK AS CANCELLED
         if (data.startsWith('cancel_')) {
             const orderNumber = data.replace('cancel_', '');
-
             const res = await callBridge('cancel', { order_number: orderNumber });
             if (!res.success) throw new Error(res.error || 'Failed to cancel order');
 
-            await bot.answerCallbackQuery(callbackId, { text: `❌ Commande ${orderNumber} annulée.` });
+            await safeAnswer(`❌ Commande ${orderNumber} annulée.`);
 
             let newText = oldText.replace(/⏳ Statut:.*/, '⏳ Statut: ❌ ANNULÉE');
             if (newText === oldText) newText += '\n\n❌ Statut: ANNULÉE';
@@ -237,6 +246,7 @@ bot.on('callback_query', async (query) => {
             await bot.editMessageText(newText, {
                 chat_id: chatId,
                 message_id: messageId,
+                parse_mode: 'HTML',
                 reply_markup: {
                     inline_keyboard: [
                         [
@@ -252,8 +262,7 @@ bot.on('callback_query', async (query) => {
         // 3. CONFIRM DELETE (Step 1)
         if (data.startsWith('confirmdelete_')) {
             const orderNumber = data.replace('confirmdelete_', '');
-
-            await bot.answerCallbackQuery(callbackId, { text: '⚠️ Confirmation requise!' });
+            await safeAnswer('⚠️ Confirmation de suppression requise!', true);
 
             await bot.editMessageReplyMarkup({
                 inline_keyboard: [
@@ -274,11 +283,10 @@ bot.on('callback_query', async (query) => {
         // 4. EXECUTE DELETE (Step 2)
         if (data.startsWith('delete_')) {
             const orderNumber = data.replace('delete_', '');
-
             const res = await callBridge('delete', { order_number: orderNumber });
             if (!res.success) throw new Error(res.error || 'Failed to delete order');
 
-            await bot.answerCallbackQuery(callbackId, { text: `🗑️ Commande ${orderNumber} supprimée!` });
+            await safeAnswer(`🗑️ Commande ${orderNumber} supprimée!`);
 
             await bot.editMessageText(`🗑️ <b>COMMANDE <code>${orderNumber}</code> SUPPRIMÉE</b>\n<i>La commande a été définitivement retirée de la base de données.</i>`, {
                 chat_id: chatId,
@@ -288,11 +296,10 @@ bot.on('callback_query', async (query) => {
             return;
         }
 
-        // 5. CANCEL DELETE (Restore buttons)
+        // 5. CANCEL DELETE (Restore original buttons)
         if (data.startsWith('canceldelete_')) {
             const orderNumber = data.replace('canceldelete_', '');
-
-            await bot.answerCallbackQuery(callbackId, { text: 'Suppression annulée.' });
+            await safeAnswer('Suppression annulée.');
 
             await bot.editMessageReplyMarkup({
                 inline_keyboard: [
@@ -311,8 +318,8 @@ bot.on('callback_query', async (query) => {
             return;
         }
     } catch (err) {
-        console.error('Callback execution error:', err.message);
-        bot.answerCallbackQuery(callbackId, { text: `⚠️ Erreur: ${err.message}` });
+        console.error('Callback processing error:', err.message);
+        await safeAnswer(`⚠️ Erreur: ${err.message}`, true);
     }
 });
 
