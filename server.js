@@ -1,6 +1,7 @@
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3000;
@@ -11,27 +12,56 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '6665401611';
 const SITE_URL = (process.env.SITE_URL || 'https://topuptn.free.je').replace(/\/$/, '');
 const BOT_BRIDGE_KEY = process.env.BOT_BRIDGE_KEY || 'NexusTopUp_Secure_Bridge_2026';
 
-// Helper function to call InfinityFree PHP Bot Bridge
+let testCookie = null;
+
+/**
+ * Helper function to call InfinityFree PHP Bot Bridge with automatic AES security challenge solver
+ */
 async function callBridge(action, params = {}) {
     const url = `${SITE_URL}/api/bot_bridge.php`;
-    const response = await axios.get(url, {
-        params: {
-            key: BOT_BRIDGE_KEY,
-            action,
-            ...params
-        },
-        timeout: 10000,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NexusBotBridge/1.0'
+    const queryParams = { key: BOT_BRIDGE_KEY, action, ...params };
+    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+    const headers = { 'User-Agent': userAgent };
+    if (testCookie) {
+        headers['Cookie'] = `__test=${testCookie}`;
+    }
+
+    try {
+        const response = await axios.get(url, { params: queryParams, headers, timeout: 10000 });
+        if (typeof response.data === 'object' && response.data !== null) {
+            return response.data;
         }
-    });
-    return response.data;
+
+        const html = response.data;
+        const matchA = typeof html === 'string' && html.match(/a=toNumbers\("([a-f0-9]+)"\)/);
+        const matchB = typeof html === 'string' && html.match(/b=toNumbers\("([a-f0-9]+)"\)/);
+        const matchC = typeof html === 'string' && html.match(/c=toNumbers\("([a-f0-9]+)"\)/);
+
+        if (matchA && matchB && matchC) {
+            const a = Buffer.from(matchA[1], 'hex');
+            const b = Buffer.from(matchB[1], 'hex');
+            const c = Buffer.from(matchC[1], 'hex');
+            const decipher = crypto.createDecipheriv('aes-128-cbc', a, b);
+            decipher.setAutoPadding(false);
+            testCookie = Buffer.concat([decipher.update(c), decipher.final()]).toString('hex');
+            
+            headers['Cookie'] = `__test=${testCookie}`;
+            const res2 = await axios.get(url, { params: queryParams, headers, timeout: 10000 });
+            return typeof res2.data === 'object' ? res2.data : JSON.parse(res2.data);
+        }
+
+        throw new Error('Could not bypass InfinityFree security challenge.');
+    } catch (err) {
+        testCookie = null;
+        throw err;
+    }
 }
 
 // Initialize Telegram Bot with 24/7 Polling
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-console.log('🤖 Nexus TopUp Telegram Bot initializing (Bridge Mode)...');
+console.log('🤖 Nexus TopUp Telegram Bot initializing (Bridge Mode with AES Bypass)...');
 
 // Initialize Express App
 const app = express();
@@ -42,7 +72,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/', (req, res) => {
     res.json({
         status: 'online',
-        mode: 'Bridge API Mode',
+        mode: 'Bridge API Mode (AES Bypass)',
         site: SITE_URL,
         timestamp: new Date().toISOString()
     });
