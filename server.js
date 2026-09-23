@@ -142,12 +142,12 @@ async function sendOrderAlert(order) {
     const keyboard = {
         inline_keyboard: [
             [
-                { text: 'Mark Completed', callback_data: `complete_${orderNumber}` },
-                { text: 'Cancel Order', callback_data: `cancel_${orderNumber}` }
+                { text: '✅ Mark Completed', callback_data: `complete_${orderNumber}` },
+                { text: '❌ Cancel Order', callback_data: `cancel_${orderNumber}` }
             ],
             [
-                { text: 'Delete Record', callback_data: `confirmdelete_${orderNumber}` },
-                { text: 'Open WhatsApp', url: waUrl }
+                { text: '🗑️ Delete Record', callback_data: `confirmdelete_${orderNumber}` },
+                { text: '💬 Open WhatsApp', url: waUrl }
             ]
         ]
     };
@@ -234,8 +234,8 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: 'Completed', callback_data: 'none' },
-                            { text: 'Delete Record', callback_data: `confirmdelete_${orderNumber}` }
+                            { text: '✅ COMPLETED', callback_data: 'none' },
+                            { text: '🗑️ Delete Record', callback_data: `confirmdelete_${orderNumber}` }
                         ]
                     ]
                 }
@@ -261,8 +261,8 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: 'Cancelled', callback_data: 'none' },
-                            { text: 'Delete Record', callback_data: `confirmdelete_${orderNumber}` }
+                            { text: '❌ CANCELLED', callback_data: 'none' },
+                            { text: '🗑️ Delete Record', callback_data: `confirmdelete_${orderNumber}` }
                         ]
                     ]
                 }
@@ -287,10 +287,10 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: `Confirm Delete #${orderNumber}`, callback_data: `delete_${orderNumber}` }
+                            { text: `⚠️ Confirm Delete #${orderNumber}`, callback_data: `delete_${orderNumber}` }
                         ],
                         [
-                            { text: 'Dismiss / Keep Order', callback_data: `canceldelete_${orderNumber}` }
+                            { text: '↩️ Dismiss / Keep Order', callback_data: `canceldelete_${orderNumber}` }
                         ]
                     ]
                 }
@@ -306,7 +306,7 @@ bot.on('callback_query', async (query) => {
 
             await safeAnswer(`Order ${orderNumber} permanently deleted.`);
 
-            await bot.editMessageText(`<b>ORDER DELETED</b> — <code>#${orderNumber}</code>\n<i>The order record has been permanently removed from the database.</i>`, {
+            await bot.editMessageText(`🗑️ <b>ORDER DELETED</b> — <code>#${orderNumber}</code>\n<i>The order record has been permanently removed from the database.</i>`, {
                 chat_id: chatId,
                 message_id: messageId,
                 parse_mode: 'HTML'
@@ -332,12 +332,12 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: 'Mark Completed', callback_data: `complete_${orderNumber}` },
-                            { text: 'Cancel Order', callback_data: `cancel_${orderNumber}` }
+                            { text: '✅ Mark Completed', callback_data: `complete_${orderNumber}` },
+                            { text: '❌ Cancel Order', callback_data: `cancel_${orderNumber}` }
                         ],
                         [
-                            { text: 'Delete Record', callback_data: `confirmdelete_${orderNumber}` },
-                            { text: 'Open WhatsApp', url: waUrl }
+                            { text: '🗑️ Delete Record', callback_data: `confirmdelete_${orderNumber}` },
+                            { text: '💬 Open WhatsApp', url: waUrl }
                         ]
                     ]
                 }
