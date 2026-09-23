@@ -1,30 +1,37 @@
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
-const mysql = require('mysql2/promise');
+const axios = require('axios');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8906011226:AAH1ryuK-p3BJRh0-yQIgFa9VF8yHRWV2VQ';
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '6665401611';
 
-// MySQL Connection Pool
-const dbPool = mysql.createPool({
-    host: process.env.DB_HOST || 'sql206.infinityfree.com',
-    user: process.env.DB_USER || 'if0_41620120',
-    password: process.env.DB_PASS || 'UwEwIeW5PU5',
-    database: process.env.DB_NAME || 'if0_41620120_coins',
-    port: parseInt(process.env.DB_PORT || '3306'),
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    keepAliveInitialDelay: 10000,
-    enableKeepAlive: true
-});
+// InfinityFree Site & Bridge API settings
+const SITE_URL = (process.env.SITE_URL || 'https://topuptn.free.je').replace(/\/$/, '');
+const BOT_BRIDGE_KEY = process.env.BOT_BRIDGE_KEY || 'NexusTopUp_Secure_Bridge_2026';
+
+// Helper function to call InfinityFree PHP Bot Bridge
+async function callBridge(action, params = {}) {
+    const url = `${SITE_URL}/api/bot_bridge.php`;
+    const response = await axios.get(url, {
+        params: {
+            key: BOT_BRIDGE_KEY,
+            action,
+            ...params
+        },
+        timeout: 10000,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NexusBotBridge/1.0'
+        }
+    });
+    return response.data;
+}
 
 // Initialize Telegram Bot with 24/7 Polling
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-console.log('🤖 Nexus TopUp Telegram Bot initializing...');
+console.log('🤖 Nexus TopUp Telegram Bot initializing (Bridge Mode)...');
 
 // Initialize Express App
 const app = express();
@@ -35,13 +42,14 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/', (req, res) => {
     res.json({
         status: 'online',
-        service: 'Nexus TopUp Telegram Bot Engine',
+        mode: 'Bridge API Mode',
+        site: SITE_URL,
         timestamp: new Date().toISOString()
     });
 });
 
 /**
- * API Endpoint to Trigger Order Notification from PHP Site
+ * API Endpoint to Trigger Order Notification from Storefront
  * POST /notify
  */
 app.post('/notify', async (req, res) => {
@@ -121,8 +129,13 @@ bot.onText(/\/(stats|today)/i, async (msg) => {
     }
 
     try {
-        const statsReport = await generateStatsReport();
-        await bot.sendMessage(chatId, statsReport, { parse_mode: 'HTML' });
+        const statsData = await callBridge('stats');
+        if (!statsData.success) {
+            throw new Error(statsData.error || 'Failed to fetch statistics from bridge.');
+        }
+
+        const report = formatStatsReport(statsData);
+        await bot.sendMessage(chatId, report, { parse_mode: 'HTML' });
     } catch (err) {
         console.error('Stats Generation Error:', err.message);
         await bot.sendMessage(chatId, `⚠️ Erreur calcul statistiques: ${err.message}`);
@@ -156,8 +169,8 @@ bot.on('callback_query', async (query) => {
         if (data.startsWith('complete_')) {
             const orderNumber = data.replace('complete_', '');
 
-            await dbPool.query("UPDATE orders SET order_status = 'completed', payment_status = 'confirmed' WHERE order_number = ?", [orderNumber]);
-            await dbPool.query("INSERT INTO order_status_history (order_id, old_status, new_status, changed_by, comment, created_at) SELECT id, 'pending', 'completed', 'Render Bot', 'Marked completed via Telegram button', NOW() FROM orders WHERE order_number = ?", [orderNumber]);
+            const res = await callBridge('complete', { order_number: orderNumber });
+            if (!res.success) throw new Error(res.error || 'Failed to update order');
 
             await bot.answerCallbackQuery(callbackId, { text: `✅ Commande ${orderNumber} terminée!` });
 
@@ -183,8 +196,8 @@ bot.on('callback_query', async (query) => {
         if (data.startsWith('cancel_')) {
             const orderNumber = data.replace('cancel_', '');
 
-            await dbPool.query("UPDATE orders SET order_status = 'cancelled' WHERE order_number = ?", [orderNumber]);
-            await dbPool.query("INSERT INTO order_status_history (order_id, old_status, new_status, changed_by, comment, created_at) SELECT id, 'pending', 'cancelled', 'Render Bot', 'Cancelled via Telegram button', NOW() FROM orders WHERE order_number = ?", [orderNumber]);
+            const res = await callBridge('cancel', { order_number: orderNumber });
+            if (!res.success) throw new Error(res.error || 'Failed to cancel order');
 
             await bot.answerCallbackQuery(callbackId, { text: `❌ Commande ${orderNumber} annulée.` });
 
@@ -232,7 +245,9 @@ bot.on('callback_query', async (query) => {
         if (data.startsWith('delete_')) {
             const orderNumber = data.replace('delete_', '');
 
-            await dbPool.query("DELETE FROM orders WHERE order_number = ?", [orderNumber]);
+            const res = await callBridge('delete', { order_number: orderNumber });
+            if (!res.success) throw new Error(res.error || 'Failed to delete order');
+
             await bot.answerCallbackQuery(callbackId, { text: `🗑️ Commande ${orderNumber} supprimée!` });
 
             await bot.editMessageText(`🗑️ <b>COMMANDE <code>${orderNumber}</code> SUPPRIMÉE</b>\n<i>La commande a été définitivement retirée de la base de données.</i>`, {
@@ -272,35 +287,12 @@ bot.on('callback_query', async (query) => {
 });
 
 /**
- * Generate Sales Statistics Report from MySQL
+ * Format Sales Statistics HTML Report
  */
-async function generateStatsReport() {
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const [todayRows] = await dbPool.query(`
-        SELECT 
-            COUNT(*) as total_orders,
-            SUM(CASE WHEN order_status = 'completed' THEN 1 ELSE 0 END) as completed_orders,
-            SUM(CASE WHEN order_status = 'pending' THEN 1 ELSE 0 END) as pending_orders,
-            SUM(CASE WHEN order_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_orders,
-            SUM(CASE WHEN order_status != 'cancelled' THEN price ELSE 0 END) as total_revenue
-        FROM orders 
-        WHERE DATE(created_at) = CURDATE()
-    `);
-    const today = todayRows[0] || {};
-
-    const [gameRows] = await dbPool.query(`
-        SELECT game_name, COUNT(*) as cnt, SUM(price) as rev 
-        FROM orders 
-        WHERE DATE(created_at) = CURDATE() AND order_status != 'cancelled'
-        GROUP BY game_name
-    `);
-
-    const [allRows] = await dbPool.query(`
-        SELECT COUNT(*) as total_all, SUM(CASE WHEN order_status != 'cancelled' THEN price ELSE 0 END) as rev_all 
-        FROM orders
-    `);
-    const overall = allRows[0] || {};
+function formatStatsReport(data) {
+    const today   = data.today || {};
+    const games   = data.games || [];
+    const overall = data.overall || {};
 
     const totCount   = today.total_orders || 0;
     const compCount  = today.completed_orders || 0;
@@ -318,9 +310,9 @@ async function generateStatsReport() {
     msg += `❌ <b>Annulées:</b> ${cancCount}\n`;
     msg += `💰 <b>Chiffre d'affaires du jour:</b> <code>${revenue}</code>\n\n`;
 
-    if (gameRows.length > 0) {
+    if (games.length > 0) {
         msg += `🎮 <b>Détail par Jeu (Aujourd'hui):</b>\n`;
-        for (const g of gameRows) {
+        for (const g of games) {
             msg += ` • <b>${g.game_name}:</b> ${g.cnt} commandes (<code>${parseFloat(g.rev || 0).toFixed(3)} TND</code>)\n`;
         }
         msg += `\n`;
