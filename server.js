@@ -58,8 +58,16 @@ async function callBridge(action, params = {}) {
     }
 }
 
-// Initialize Telegram Bot with 24/7 Polling
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+// Initialize Telegram Bot with 24/7 Polling (explicitly enabling callback_query for buttons)
+const bot = new TelegramBot(BOT_TOKEN, {
+    polling: {
+        interval: 300,
+        autoStart: true,
+        params: {
+            allowed_updates: ["message", "edited_message", "callback_query"]
+        }
+    }
+});
 
 console.log('🤖 Nexus TopUp Telegram Bot initializing (Bridge Mode with AES Bypass)...');
 
