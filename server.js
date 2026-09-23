@@ -118,34 +118,34 @@ async function sendOrderAlert(order) {
     const server      = order.platform_or_server || 'N/A';
     const whatsapp    = order.customer_whatsapp || 'N/A';
     const email       = order.customer_email || 'N/A';
-    const date        = new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' });
+    const date        = new Date().toLocaleString('en-US', { timeZone: 'Africa/Tunis' });
 
     const cleanWhatsapp = whatsapp.replace(/[^0-9]/g, '');
-    const waText = encodeURIComponent(`Bonjour ${customer}! Votre commande ${orderNumber} sur TopUp TN est en cours de traitement.`);
+    const waText = encodeURIComponent(`Hello ${customer}! Your order ${orderNumber} on TopUp TN is being processed.`);
     const waUrl = `https://wa.me/${cleanWhatsapp}?text=${waText}`;
 
-    let msg = `🛒 <b>NOUVELLE COMMANDE REÇUE !</b>\n\n`;
-    msg += `🧾 <b>N° Commande:</b> <code>${orderNumber}</code>\n`;
-    msg += `🎮 <b>Jeu:</b> ${gameName}\n`;
-    msg += `💎 <b>Pack:</b> ${packageName}\n`;
-    msg += `💰 <b>Prix:</b> <code>${price}</code>\n\n`;
-    msg += `👤 <b>Client:</b> ${customer}\n`;
-    msg += `🆔 <b>ID Joueur / UID:</b> <code>${playerId}</code>\n`;
-    msg += `🌐 <b>Serveur:</b> ${server}\n`;
+    let msg = `🛒 <b>NEW ORDER RECEIVED!</b>\n\n`;
+    msg += `🧾 <b>Order #:</b> <code>${orderNumber}</code>\n`;
+    msg += `🎮 <b>Game:</b> ${gameName}\n`;
+    msg += `💎 <b>Package:</b> ${packageName}\n`;
+    msg += `💰 <b>Price:</b> <code>${price}</code>\n\n`;
+    msg += `👤 <b>Customer:</b> ${customer}\n`;
+    msg += `🆔 <b>Player ID / UID:</b> <code>${playerId}</code>\n`;
+    msg += `🌐 <b>Server:</b> ${server}\n`;
     msg += `📱 <b>WhatsApp:</b> <a href="${waUrl}">${whatsapp}</a>\n`;
     msg += `📧 <b>Email:</b> ${email}\n`;
     msg += `📅 <b>Date:</b> ${date}\n`;
-    msg += `⏳ <b>Statut:</b> 🟡 <i>EN ATTENTE</i>\n`;
+    msg += `⏳ <b>Status:</b> 🟡 <i>PENDING</i>\n`;
 
     const keyboard = {
         inline_keyboard: [
             [
-                { text: '✅ Valider (Terminée)', callback_data: `complete_${orderNumber}` },
-                { text: '❌ Annuler', callback_data: `cancel_${orderNumber}` }
+                { text: '✅ Complete Order', callback_data: `complete_${orderNumber}` },
+                { text: '❌ Cancel Order', callback_data: `cancel_${orderNumber}` }
             ],
             [
-                { text: '🗑️ Supprimer', callback_data: `confirmdelete_${orderNumber}` },
-                { text: '💬 Contacter (WhatsApp)', url: waUrl }
+                { text: '🗑️ Delete Order', callback_data: `confirmdelete_${orderNumber}` },
+                { text: '💬 Contact (WhatsApp)', url: waUrl }
             ]
         ]
     };
@@ -163,7 +163,7 @@ async function sendOrderAlert(order) {
 bot.onText(/\/(stats|today)/i, async (msg) => {
     const chatId = msg.chat.id;
     if (CHAT_ID && String(chatId) !== String(CHAT_ID)) {
-        return bot.sendMessage(chatId, `⛔ Accès non autorisé (ID: ${chatId}).`);
+        return bot.sendMessage(chatId, `⛔ Access Denied (ID: ${chatId}).`);
     }
 
     try {
@@ -176,17 +176,17 @@ bot.onText(/\/(stats|today)/i, async (msg) => {
         await bot.sendMessage(chatId, report, { parse_mode: 'HTML' });
     } catch (err) {
         console.error('Stats Generation Error:', err.message);
-        await bot.sendMessage(chatId, `⚠️ Erreur calcul statistiques: ${err.message}`);
+        await bot.sendMessage(chatId, `⚠️ Statistics Error: ${err.message}`);
     }
 });
 
 bot.onText(/\/(start|help)/i, async (msg) => {
     const chatId = msg.chat.id;
-    let welcome = `👋 <b>Bienvenue sur le Bot Administrateur Nexus TopUp (Render Engine)!</b>\n\n`;
-    welcome += `Commandes disponibles:\n`;
-    welcome += `• /stats - Rapport des ventes & chiffre d'affaires du jour\n`;
-    welcome += `• /today - Résumé des commandes d'aujourd'hui\n\n`;
-    welcome += `<i>Le bot fonctionne 24/7 en direct avec des notifications instantanées et boutons d'action rapide!</i>`;
+    let welcome = `👋 <b>Welcome to Nexus TopUp Admin Bot!</b>\n\n`;
+    welcome += `Available Commands:\n`;
+    welcome += `• /stats - Daily sales & revenue statistics\n`;
+    welcome += `• /today - Summary of today's orders\n\n`;
+    welcome += `<i>New orders will appear automatically here with real-time quick action buttons!</i>`;
 
     bot.sendMessage(chatId, welcome, { parse_mode: 'HTML' });
 });
@@ -219,10 +219,10 @@ bot.on('callback_query', async (query) => {
             const res = await callBridge('complete', { order_number: orderNumber });
             if (!res.success) throw new Error(res.error || 'Failed to update order');
 
-            await safeAnswer(`✅ Commande ${orderNumber} marquée comme terminée!`);
+            await safeAnswer(`✅ Order ${orderNumber} marked as completed!`);
 
-            let newText = oldText.replace(/⏳ Statut:.*/, '⏳ Statut: ✅ TERMINÉE');
-            if (newText === oldText) newText += '\n\n✅ Statut: TERMINÉE';
+            let newText = oldText.replace(/⏳ Status:.*/i, '⏳ Status: ✅ COMPLETED');
+            if (newText === oldText) newText += '\n\n✅ Status: COMPLETED';
 
             await bot.editMessageText(newText, {
                 chat_id: chatId,
@@ -231,8 +231,8 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: '✅ TERMINÉE', callback_data: 'none' },
-                            { text: '🗑️ Supprimer', callback_data: `confirmdelete_${orderNumber}` }
+                            { text: '✅ COMPLETED', callback_data: 'none' },
+                            { text: '🗑️ Delete Order', callback_data: `confirmdelete_${orderNumber}` }
                         ]
                     ]
                 }
@@ -246,10 +246,10 @@ bot.on('callback_query', async (query) => {
             const res = await callBridge('cancel', { order_number: orderNumber });
             if (!res.success) throw new Error(res.error || 'Failed to cancel order');
 
-            await safeAnswer(`❌ Commande ${orderNumber} annulée.`);
+            await safeAnswer(`❌ Order ${orderNumber} cancelled.`);
 
-            let newText = oldText.replace(/⏳ Statut:.*/, '⏳ Statut: ❌ ANNULÉE');
-            if (newText === oldText) newText += '\n\n❌ Statut: ANNULÉE';
+            let newText = oldText.replace(/⏳ Status:.*/i, '⏳ Status: ❌ CANCELLED');
+            if (newText === oldText) newText += '\n\n❌ Status: CANCELLED';
 
             await bot.editMessageText(newText, {
                 chat_id: chatId,
@@ -258,8 +258,8 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: '❌ ANNULÉE', callback_data: 'none' },
-                            { text: '🗑️ Supprimer', callback_data: `confirmdelete_${orderNumber}` }
+                            { text: '❌ CANCELLED', callback_data: 'none' },
+                            { text: '🗑️ Delete Order', callback_data: `confirmdelete_${orderNumber}` }
                         ]
                     ]
                 }
@@ -270,11 +270,11 @@ bot.on('callback_query', async (query) => {
         // 3. CONFIRM DELETE (Step 1)
         if (data.startsWith('confirmdelete_')) {
             const orderNumber = data.replace('confirmdelete_', '');
-            await safeAnswer('⚠️ Confirmation de suppression requise!');
+            await safeAnswer('⚠️ Deletion confirmation required!');
 
             let confirmText = oldText;
-            if (!confirmText.includes('⚠️ CONFIRMATION REQUISE')) {
-                confirmText += '\n\n⚠️ <b>CONFIRMATION REQUISE: Voulez-vous vraiment supprimer cette commande ?</b>';
+            if (!confirmText.includes('⚠️ CONFIRMATION REQUIRED')) {
+                confirmText += `\n\n⚠️ <b>CONFIRMATION REQUIRED: Do you really want to delete order ${orderNumber}?</b>`;
             }
 
             await bot.editMessageText(confirmText, {
@@ -284,10 +284,10 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: `⚠️ OUI, SUPPRIMER ${orderNumber}`, callback_data: `delete_${orderNumber}` }
+                            { text: `⚠️ YES, DELETE ${orderNumber}`, callback_data: `delete_${orderNumber}` }
                         ],
                         [
-                            { text: '↩️ Non, Annuler', callback_data: `canceldelete_${orderNumber}` }
+                            { text: '↩️ Cancel', callback_data: `canceldelete_${orderNumber}` }
                         ]
                     ]
                 }
@@ -301,9 +301,9 @@ bot.on('callback_query', async (query) => {
             const res = await callBridge('delete', { order_number: orderNumber });
             if (!res.success) throw new Error(res.error || 'Failed to delete order');
 
-            await safeAnswer(`🗑️ Commande ${orderNumber} supprimée!`);
+            await safeAnswer(`🗑️ Order ${orderNumber} deleted!`);
 
-            await bot.editMessageText(`🗑️ <b>COMMANDE <code>${orderNumber}</code> SUPPRIMÉE</b>\n<i>La commande a été définitivement retirée de la base de données.</i>`, {
+            await bot.editMessageText(`🗑️ <b>ORDER <code>${orderNumber}</code> DELETED</b>\n<i>The order has been permanently removed from the database.</i>`, {
                 chat_id: chatId,
                 message_id: messageId,
                 parse_mode: 'HTML'
@@ -314,12 +314,12 @@ bot.on('callback_query', async (query) => {
         // 5. CANCEL DELETE (Restore original buttons)
         if (data.startsWith('canceldelete_')) {
             const orderNumber = data.replace('canceldelete_', '');
-            await safeAnswer('Suppression annulée.');
+            await safeAnswer('Deletion cancelled.');
 
-            let restoredText = oldText.replace(/\n\n⚠️ <b>CONFIRMATION REQUISE:.*/s, '');
+            let restoredText = oldText.replace(/\n\n⚠️ <b>CONFIRMATION REQUIRED:.*/s, '');
 
             const cleanWhatsapp = '';
-            const waText = encodeURIComponent(`Bonjour! Votre commande ${orderNumber} sur TopUp TN est en cours de traitement.`);
+            const waText = encodeURIComponent(`Hello! Your order ${orderNumber} on TopUp TN is being processed.`);
             const waUrl = `https://wa.me/${cleanWhatsapp}?text=${waText}`;
 
             await bot.editMessageText(restoredText, {
@@ -329,12 +329,12 @@ bot.on('callback_query', async (query) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: '✅ Valider (Terminée)', callback_data: `complete_${orderNumber}` },
-                            { text: '❌ Annuler', callback_data: `cancel_${orderNumber}` }
+                            { text: '✅ Complete Order', callback_data: `complete_${orderNumber}` },
+                            { text: '❌ Cancel Order', callback_data: `cancel_${orderNumber}` }
                         ],
                         [
-                            { text: '🗑️ Supprimer', callback_data: `confirmdelete_${orderNumber}` },
-                            { text: '💬 Contacter (WhatsApp)', url: waUrl }
+                            { text: '🗑️ Delete Order', callback_data: `confirmdelete_${orderNumber}` },
+                            { text: '💬 Contact (WhatsApp)', url: waUrl }
                         ]
                     ]
                 }
@@ -343,12 +343,12 @@ bot.on('callback_query', async (query) => {
         }
     } catch (err) {
         console.error('Callback processing error:', err.message);
-        await safeAnswer(`⚠️ Erreur: ${err.message}`, true);
+        await safeAnswer(`⚠️ Error: ${err.message}`, true);
     }
 });
 
 /**
- * Format Sales Statistics HTML Report
+ * Format Sales Statistics HTML Report (English)
  */
 function formatStatsReport(data) {
     const today   = data.today || {};
@@ -361,28 +361,28 @@ function formatStatsReport(data) {
     const cancCount  = today.cancelled_orders || 0;
     const revenue    = `${parseFloat(today.total_revenue || 0).toFixed(3)} TND`;
     const totAllRev  = `${parseFloat(overall.rev_all || 0).toFixed(3)} TND`;
-    const date       = new Date().toLocaleDateString('fr-FR');
+    const date       = new Date().toLocaleDateString('en-GB');
 
-    let msg = `📊 <b>STATISTIQUES DES VENTES DU ${date}</b>\n`;
+    let msg = `📊 <b>SALES STATISTICS FOR ${date}</b>\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    msg += `🛒 <b>Commandes Aujourd'hui:</b> ${totCount}\n`;
-    msg += `✅ <b>Terminées:</b> ${compCount}\n`;
-    msg += `⏳ <b>En Attente:</b> ${pendCount}\n`;
-    msg += `❌ <b>Annulées:</b> ${cancCount}\n`;
-    msg += `💰 <b>Chiffre d'affaires du jour:</b> <code>${revenue}</code>\n\n`;
+    msg += `🛒 <b>Orders Today:</b> ${totCount}\n`;
+    msg += `✅ <b>Completed:</b> ${compCount}\n`;
+    msg += `⏳ <b>Pending:</b> ${pendCount}\n`;
+    msg += `❌ <b>Cancelled:</b> ${cancCount}\n`;
+    msg += `💰 <b>Today's Revenue:</b> <code>${revenue}</code>\n\n`;
 
     if (games.length > 0) {
-        msg += `🎮 <b>Détail par Jeu (Aujourd'hui):</b>\n`;
+        msg += `🎮 <b>Breakdown by Game (Today):</b>\n`;
         for (const g of games) {
-            msg += ` • <b>${g.game_name}:</b> ${g.cnt} commandes (<code>${parseFloat(g.rev || 0).toFixed(3)} TND</code>)\n`;
+            msg += ` • <b>${g.game_name}:</b> ${g.cnt} orders (<code>${parseFloat(g.rev || 0).toFixed(3)} TND</code>)\n`;
         }
         msg += `\n`;
     }
 
-    msg += `🏆 <b>Total Réseau (Historique):</b>\n`;
-    msg += ` • Commandes totales: ${overall.total_all || 0}\n`;
-    msg += ` • Chiffre global: <code>${totAllRev}</code>\n`;
-    msg += `\n📅 <i>Généré le ${new Date().toLocaleTimeString('fr-FR')}</i>`;
+    msg += `🏆 <b>Network Total (All-Time):</b>\n`;
+    msg += ` • Total Orders: ${overall.total_all || 0}\n`;
+    msg += ` • Total Revenue: <code>${totAllRev}</code>\n`;
+    msg += `\n📅 <i>Generated at ${new Date().toLocaleTimeString('en-GB')}</i>`;
 
     return msg;
 }
