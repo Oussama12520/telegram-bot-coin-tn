@@ -262,20 +262,27 @@ bot.on('callback_query', async (query) => {
         // 3. CONFIRM DELETE (Step 1)
         if (data.startsWith('confirmdelete_')) {
             const orderNumber = data.replace('confirmdelete_', '');
-            await safeAnswer('⚠️ Confirmation de suppression requise!', true);
+            await safeAnswer('⚠️ Confirmation de suppression requise!');
 
-            await bot.editMessageReplyMarkup({
-                inline_keyboard: [
-                    [
-                        { text: `⚠️ CONFIRMER LA SUPPRESSION DE ${orderNumber}`, callback_data: `delete_${orderNumber}` }
-                    ],
-                    [
-                        { text: '↩️ Non, Annuler', callback_data: `canceldelete_${orderNumber}` }
-                    ]
-                ]
-            }, {
+            let confirmText = oldText;
+            if (!confirmText.includes('⚠️ CONFIRMATION REQUISE')) {
+                confirmText += '\n\n⚠️ <b>CONFIRMATION REQUISE: Voulez-vous vraiment supprimer cette commande ?</b>';
+            }
+
+            await bot.editMessageText(confirmText, {
                 chat_id: chatId,
-                message_id: messageId
+                message_id: messageId,
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: `⚠️ OUI, SUPPRIMER ${orderNumber}`, callback_data: `delete_${orderNumber}` }
+                        ],
+                        [
+                            { text: '↩️ Non, Annuler', callback_data: `canceldelete_${orderNumber}` }
+                        ]
+                    ]
+                }
             });
             return;
         }
@@ -301,19 +308,28 @@ bot.on('callback_query', async (query) => {
             const orderNumber = data.replace('canceldelete_', '');
             await safeAnswer('Suppression annulée.');
 
-            await bot.editMessageReplyMarkup({
-                inline_keyboard: [
-                    [
-                        { text: '✅ Valider (Terminée)', callback_data: `complete_${orderNumber}` },
-                        { text: '❌ Annuler', callback_data: `cancel_${orderNumber}` }
-                    ],
-                    [
-                        { text: '🗑️ Supprimer', callback_data: `confirmdelete_${orderNumber}` }
-                    ]
-                ]
-            }, {
+            let restoredText = oldText.replace(/\n\n⚠️ <b>CONFIRMATION REQUISE:.*/s, '');
+
+            const cleanWhatsapp = '';
+            const waText = encodeURIComponent(`Bonjour! Votre commande ${orderNumber} sur TopUp TN est en cours de traitement.`);
+            const waUrl = `https://wa.me/${cleanWhatsapp}?text=${waText}`;
+
+            await bot.editMessageText(restoredText, {
                 chat_id: chatId,
-                message_id: messageId
+                message_id: messageId,
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: '✅ Valider (Terminée)', callback_data: `complete_${orderNumber}` },
+                            { text: '❌ Annuler', callback_data: `cancel_${orderNumber}` }
+                        ],
+                        [
+                            { text: '🗑️ Supprimer', callback_data: `confirmdelete_${orderNumber}` },
+                            { text: '💬 Contacter (WhatsApp)', url: waUrl }
+                        ]
+                    ]
+                }
             });
             return;
         }
